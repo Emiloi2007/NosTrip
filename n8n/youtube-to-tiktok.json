@@ -1,0 +1,387 @@
+{
+  "name": "YouTube → TikTok (parties égales)",
+  "nodes": [
+    {
+      "id": "04a12b66-70ba-4d79-916b-e6e79f1fe482",
+      "name": "Formulaire",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "e5e1e8e9-e263-40bf-8619-a6d29235c126",
+      "parameters": {
+        "formTitle": "YouTube → TikTok",
+        "formDescription": "Découpe une vidéo YouTube en parties de même durée (format vertical 9:16) puis les publie une par une sur TikTok.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "URL YouTube",
+              "placeholder": "https://www.youtube.com/watch?v=...",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Durée maximale d'une partie (secondes)",
+              "fieldType": "number",
+              "placeholder": "60",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Confidentialité TikTok",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "SELF_ONLY"
+                  },
+                  {
+                    "option": "PUBLIC_TO_EVERYONE"
+                  },
+                  {
+                    "option": "FOLLOWER_OF_CREATOR"
+                  },
+                  {
+                    "option": "MUTUAL_FOLLOW_FRIENDS"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Sous-titres",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Oui"
+                  },
+                  {
+                    "option": "Non"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Mise en page",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "blur"
+                  },
+                  {
+                    "option": "crop"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Pause entre deux publications (minutes)",
+              "fieldType": "number",
+              "placeholder": "10"
+            }
+          ]
+        },
+        "options": {
+          "respondWithOptions": {
+            "values": {
+              "formSubmittedText": "C'est parti ! Les parties seront publiées sur TikTok au fur et à mesure."
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "e08b2ca7-e6e8-4020-9741-91b9facb4660",
+      "name": "Nouvelle vidéo de la chaîne",
+      "type": "n8n-nodes-base.rssFeedReadTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        220
+      ],
+      "disabled": true,
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyHour"
+            }
+          ]
+        },
+        "feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=REMPLACER_PAR_ID_CHAINE"
+      }
+    },
+    {
+      "id": "a1a10a1f-619e-413a-9920-fd256c585fd5",
+      "name": "Paramètres",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        100
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c48b3768-b6e8-46cd-8a88-b48af71c74b0",
+              "name": "url",
+              "type": "string",
+              "value": "={{ $json['URL YouTube'] || $json.link }}"
+            },
+            {
+              "id": "dedbccc6-9731-436d-801d-7a8eaa907aab",
+              "name": "part_seconds",
+              "type": "number",
+              "value": "={{ Number($json[\"Durée maximale d'une partie (secondes)\"]) || 60 }}"
+            },
+            {
+              "id": "a8fd6e82-e539-4519-bb56-fcb6e77ba503",
+              "name": "privacy_level",
+              "type": "string",
+              "value": "={{ $json['Confidentialité TikTok'] || 'SELF_ONLY' }}"
+            },
+            {
+              "id": "5f477779-821c-42d7-bda3-d12c5ee1d87e",
+              "name": "subtitles",
+              "type": "boolean",
+              "value": "={{ ($json['Sous-titres'] || 'Oui') === 'Oui' }}"
+            },
+            {
+              "id": "c771e02a-f159-491b-ad25-6c5e0a355552",
+              "name": "layout",
+              "type": "string",
+              "value": "={{ $json['Mise en page'] || 'blur' }}"
+            },
+            {
+              "id": "ac5788cb-867c-4afa-b713-6f3f83d60d4b",
+              "name": "pause_minutes",
+              "type": "number",
+              "value": "={{ Number($json['Pause entre deux publications (minutes)']) || 10 }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "abbc5f0e-e94e-4bbb-8305-0c23f3798a8d",
+      "name": "Découper la vidéo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WORKER_URL }}/split",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Worker-Token",
+              "value": "={{ $env.WORKER_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ url: $json.url, mode: 'equal', part_seconds: $json.part_seconds, subtitles: $json.subtitles, layout: $json.layout, part_label: true }) }}",
+        "options": {
+          "timeout": 3600000
+        }
+      }
+    },
+    {
+      "id": "64c4fb79-c152-468f-9c40-d918bc9ab6a1",
+      "name": "Une ligne par partie",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        720,
+        100
+      ],
+      "parameters": {
+        "fieldToSplitOut": "parts",
+        "options": {}
+      }
+    },
+    {
+      "id": "f5de636c-b6f7-4325-8e49-58c6cdfe9047",
+      "name": "Pour chaque partie",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        960,
+        100
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "65038dee-1ec4-4f6f-b340-f8a3303e2cf0",
+      "name": "Publier sur TikTok",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        180
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WORKER_URL }}/tiktok/publish",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Worker-Token",
+              "value": "={{ $env.WORKER_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ file: $json.file, title: $json.caption, privacy_level: $('Paramètres').first().json.privacy_level }) }}",
+        "options": {
+          "timeout": 900000
+        }
+      }
+    },
+    {
+      "id": "8ab3ce70-bee7-4b46-a7f7-e154093a06a2",
+      "name": "Pause",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1440,
+        180
+      ],
+      "webhookId": "2b8b6c62-89b9-4f96-8192-832619bae0f9",
+      "parameters": {
+        "amount": "={{ $('Paramètres').first().json.pause_minutes }}",
+        "unit": "minutes"
+      }
+    },
+    {
+      "id": "05924ba9-b69b-42cb-b557-8baf94326475",
+      "name": "Terminé",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        -20
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Formulaire": {
+      "main": [
+        [
+          {
+            "node": "Paramètres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nouvelle vidéo de la chaîne": {
+      "main": [
+        [
+          {
+            "node": "Paramètres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Paramètres": {
+      "main": [
+        [
+          {
+            "node": "Découper la vidéo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Découper la vidéo": {
+      "main": [
+        [
+          {
+            "node": "Une ligne par partie",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Une ligne par partie": {
+      "main": [
+        [
+          {
+            "node": "Pour chaque partie",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pour chaque partie": {
+      "main": [
+        [
+          {
+            "node": "Terminé",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Publier sur TikTok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publier sur TikTok": {
+      "main": [
+        [
+          {
+            "node": "Pause",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pause": {
+      "main": [
+        [
+          {
+            "node": "Pour chaque partie",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

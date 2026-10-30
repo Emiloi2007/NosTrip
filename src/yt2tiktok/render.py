@@ -43,11 +43,19 @@ def build_command(
         "-ss", f"{start:.3f}", "-i", str(source), "-t", f"{duration:.3f}",
         "-filter_complex", f"[0:v]{video_filter(layout, width, height, subtitles)}[v]",
         "-map", "[v]", "-map", "0:a?",
-        "-r", "30", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
+        "-r", "30", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-maxrate", "8M", "-bufsize", "16M", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "128k",
         "-movflags", "+faststart",
         str(output),
     ]
+
+
+def probe_duration(path: Path) -> float:
+    out = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
+        capture_output=True, text=True, check=True,
+    )
+    return float(out.stdout.strip())
 
 
 def render_clip(source: Path, output: Path, start: float, duration: float, layout: str = "blur",

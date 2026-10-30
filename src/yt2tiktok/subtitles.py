@@ -13,6 +13,7 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,{font},{size},&H00FFFFFF,&H000000FF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,6,2,2,60,60,{margin_v},1
+Style: Label,{font},{label_size},&H00FFFFFF,&H000000FF,&H00000000,&H96000000,-1,0,0,0,100,100,0,0,3,18,0,8,60,60,{label_margin},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -57,10 +58,21 @@ def build_ass(
     height: int = 1920,
     font: str = "Arial",
     max_words: int = 3,
+    label: str | None = None,
+    words: bool = True,
 ) -> str:
-    """Génère un fichier ASS dont les temps sont relatifs au début du clip."""
-    out = [ASS_HEADER.format(w=width, h=height, font=font, size=int(height * 0.045), margin_v=int(height * 0.28))]
-    chunks = chunk_words(words_in_range(segments, start, end), max_words)
+    """Génère un fichier ASS dont les temps sont relatifs au début du clip.
+
+    label : bandeau affiché en haut pendant tout le clip (ex. « PARTIE 2/5 »).
+    words : False pour n'afficher que le bandeau, sans sous-titres.
+    """
+    out = [ASS_HEADER.format(
+        w=width, h=height, font=font, size=int(height * 0.045), margin_v=int(height * 0.28),
+        label_size=int(height * 0.035), label_margin=int(height * 0.12),
+    )]
+    if label:
+        out.append(f"Dialogue: 1,{ass_time(0)},{ass_time(end - start)},Label,,0,0,0,,{escape(label)}")
+    chunks = chunk_words(words_in_range(segments, start, end), max_words) if words else []
     for k, chunk in enumerate(chunks):
         next_start = chunks[k + 1][0].start if k + 1 < len(chunks) else None
         for i, w in enumerate(chunk):

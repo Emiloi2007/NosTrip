@@ -1,0 +1,31 @@
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - GENERIC_TIMEZONE=${TZ:-Europe/Paris}
+      - TZ=${TZ:-Europe/Paris}
+      - N8N_SECURE_COOKIE=false
+      # Rend l'adresse et le jeton du worker accessibles dans le workflow via $env
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - WORKER_URL=http://worker:8000
+      - WORKER_TOKEN=${WORKER_TOKEN}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      - worker
+
+  worker:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8000:8000"   # nécessaire pour la connexion TikTok (/tiktok/login et /tiktok/callback)
+    env_file: .env
+    volumes:
+      - worker_data:/data
+
+volumes:
+  n8n_data:
+  worker_data:

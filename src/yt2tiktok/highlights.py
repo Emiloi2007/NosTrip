@@ -148,3 +148,32 @@ def llm_select(
         if snapped:
             clips.append(snapped)
     return remove_overlaps(clips)[:max_clips]
+
+
+def equal_split(
+    duration: float, part_seconds: float, segments: list[Segment] | None = None, tolerance: float = 5.0
+) -> list[Clip]:
+    """Découpe la vidéo entière en parties de durée (quasi) identique.
+
+    Le nombre de parties est ceil(durée / part_seconds) et la durée est répartie
+    équitablement. Si une transcription est fournie, chaque coupure est déplacée
+    (± tolerance s) vers la pause entre deux phrases la plus proche pour ne pas
+    couper un mot.
+    """
+    import math
+
+    if duration <= 0 or part_seconds <= 0:
+        return []
+    n = max(1, math.ceil(duration / part_seconds - 1e-6))
+    step = duration / n
+    gaps = [(a.end + b.start) / 2 for a, b in zip(segments, segments[1:])] if segments else []
+    cuts = [0.0]
+    for k in range(1, n):
+        target = k * step
+        near = [g for g in gaps if abs(g - target) <= tolerance and g > cuts[-1] + 1]
+        cuts.append(min(near, key=lambda g: abs(g - target)) if near else target)
+    cuts.append(duration)
+    return [
+        Clip(round(a, 3), round(b, 3), title=f"Partie {i}/{n}")
+        for i, (a, b) in enumerate(zip(cuts, cuts[1:]), 1)
+    ]
